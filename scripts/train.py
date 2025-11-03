@@ -1,0 +1,239 @@
+import os
+import pickle
+from loguru import logger
+from glob import glob
+
+import hydra
+from hydra.utils import call
+from omegaconf import OmegaConf
+from pathlib import Path
+import wandb
+from tqdm import tqdm
+import torch
+import numpy as np
+from joblib import Parallel, delayed
+
+from torch_geometric.nn import summary
+from lagat.utils import set_global_seeds
+import torch.nn.functional as F
+from torch.utils.data import ConcatDataset
+
+from lagat.features import get_pyg_datalist_from_one_instance
+from hydra.utils import instantiate
+from lagat.grid_config_generator import generate_grid_config_from_env
+from lagat.run_planners import run_neural_policy as run_model
+from lagat.run_planners import run_full_horizon_planner as run_expert
+
+
+@hydra.main(
+    version_base=None,
+    config_path="conf",
+    config_name="train",
+)
+def main(cfg):
+    log_dir = Path(hydra.core.hydra_config.HydraConfig.get()["runtime"]["output_dir"])
+
+    # setup wandb
+    os.environ["WANDB_SILENT"] = "true"
+    wandb.init(
+        project=cfg.project,
+        dir=log_dir,
+        name=str(log_dir).split("/")[-1],
+        mode="online" if cfg.wandb else "disabled",
+        config=OmegaConf.to_container(cfg, resolve=True),
+    )
+
+    set_global_seeds(cfg.seed)
+    logger.info(f"device={cfg.device}, seed={cfg.seed}, logdir={log_dir}")
+
+    if cfg.save_animation:
+        (log_dir / "animation").mkdir(parents=True, exist_ok=True)
+
+    # load dataset
+    if cfg.dataset_dir is None:
+        target_dir = Path(__file__).parents[1] / "outputs/imitation_learning_dataset"
+        dataset_dir = sorted(
+            [p for p in target_dir.iterdir() if p.is_dir() and p.stem.startswith("20")]
+        )[-1]
+        logger.info(f"dataset_dir is not specified, so use {dataset_dir}")
+    else:
+        dataset_dir = Path(cfg.dataset_dir)
+    dataset_fpaths = list(
+        sorted(map(Path, glob(f"{dataset_dir}/**/*.pkl", recursive=True)))
+    )
+    logger.info(f"found {len(dataset_fpaths)} files")
+
+    # load dataset
+    def load_file(fpath):
+        with open(fpath, "rb") as f:
+            return pickle.load(f)
+
+    pyg_dataset_list = [
+        r
+        for r in tqdm(
+            Parallel(return_as="generator", n_jobs=cfg.n_jobs)(
+                [delayed(load_file)(fpath) for fpath in dataset_fpaths]
+            ),
+            desc="load pickle files",
+            total=len(dataset_fpaths),
+        )
+    ]
+    pyg_dataset = []
+    for d in pyg_dataset_list:
+        pyg_dataset.extend(d)
+
+    logger.info(f"load {len(pyg_dataset)} configurations in total")
+    jit_trace_data = dict(
+        [
+            (k, pyg_dataset[0][k].clone().to("cpu"))
+            for k in ["x", "edge_index", "edge_attr"]
+        ]
+    )
+
+    obs_radius = (pyg_dataset[0].x.size(-1) - 1) // 2
+    logger.info(f"{obs_radius=}")
+
+    # data loader preparation
+    dataset_train, dataset_val = call(cfg.dataset_split, pyg_dataset)
+    dataloader_train = call(cfg.dataloader, dataset_train)
+    dataloader_val = call(cfg.dataloader, dataset_val)
+    logger.info(f"data size: train={len(dataset_train)}, val={len(dataset_val)}")
+
+    # define model
+    model = call(cfg.model, obs_radius=obs_radius).to(cfg.device)
+    print(summary(model, pyg_dataset[0].clone().to(cfg.device)))
+    model = torch.compile(model)  # speed up
+
+    # learning metrics
+    optimizer = call(cfg.optimizer, model.parameters())
+    scheduler = call(cfg.scheduler, optimizer)
+
+    # data aggregation by online expert
+    oe = cfg.online_evaluation
+    expert = instantiate(cfg.expert)
+    grid_config_generator = instantiate(cfg.grid_config)
+    pyg_dataset_oe = []
+
+    # stats
+    stats = dict()
+    stats["loss/best"] = np.inf
+    stats["acc/best"] = 0
+    stats["success/best"] = 0
+    stats["dataset_size/train"] = len(dataloader_train.dataset)
+
+    def step_train():
+        losses, accuracies = [], []
+        for batch in tqdm(dataloader_train, desc="step_train", leave=False):
+            batch = batch.to(cfg.device)
+            logits = model(batch)
+            loss = F.cross_entropy(logits, batch.y)
+            acc = (torch.argmax(logits, dim=1) == batch.y).float().mean()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            losses.append(loss.item())
+            accuracies.append(acc.item())
+        stats["loss/train"] = np.mean(losses)
+        stats["acc/train"] = np.mean(accuracies)
+
+    @torch.no_grad()
+    def step_val():
+        losses, accuracies = [], []
+        for batch in tqdm(dataloader_val, desc="step_val", leave=False):
+            batch = batch.to(cfg.device)
+            logits = model(batch)
+            loss = F.cross_entropy(logits, batch.y)
+            acc = (torch.argmax(logits, dim=1) == batch.y).float().mean()
+            losses.append(loss.item())
+            accuracies.append(acc.item())
+        stats["loss/val"] = np.mean(losses)
+        stats["acc/val"] = np.mean(accuracies)
+
+    def step_online_evaluation(epoch: int):
+        if epoch % oe.every_epoch != 0 or oe.use is False:
+            return
+        stats["oe/success_rate"] = 0
+        stats["oe/num_model_success"] = 0
+        stats["oe/num_new_instances"] = 0
+        stats["oe/num_new_configurations"] = 0
+        stats["oe/num_expert_failure"] = 0
+        with tqdm(desc="online evaluation", total=oe.num_samples, leave=False) as pbar:
+            for i in range(oe.num_samples):
+                env, all_actions, all_observations, all_terminated = run_model(
+                    model,
+                    grid_config_generator(np.random.randint(np.iinfo(np.int64).max)),
+                    **oe.run_model,
+                )
+                if cfg.save_animation:
+                    target_dir = log_dir / f"animation/{epoch:06d}"
+                    target_dir.mkdir(exist_ok=True)
+                    env.save_animation(target_dir / f"{i:06d}.svg")
+
+                if all(all_terminated[-1]):
+                    stats["oe/num_model_success"] += 1
+                elif oe.dataset_aggregation:
+                    # online dataset aggregation by running the expert planner
+                    env, all_actions, all_observations, all_terminated = run_expert(
+                        expert, generate_grid_config_from_env(env)
+                    )
+                    if all(all_terminated[-1]):
+                        pyg_data = get_pyg_datalist_from_one_instance(
+                            (all_observations, all_actions, all_terminated),
+                            obs_radius=model.obs_radius,
+                        )
+                        pyg_dataset_oe.extend(pyg_data)
+                        stats["oe/num_new_instances"] += 1
+                        stats["oe/num_new_configurations"] += len(pyg_data)
+                    else:
+                        stats["oe/num_expert_failure"] += 1
+                stats["oe/success_rate"] = stats["oe/num_model_success"] / (i + 1)
+                msg = {k: v for k, v in stats.items() if k.startswith("oe")}
+                pbar.set_postfix(**msg)
+                pbar.update(1)
+        stats["success/val"] = stats["oe/num_model_success"] / oe.num_samples
+        nonlocal dataloader_train
+        dataloader_train = call(
+            cfg.dataloader, ConcatDataset([dataset_train, pyg_dataset_oe])
+        )
+        stats["dataset_size/train"] = len(dataloader_train.dataset)
+
+    @torch.no_grad()
+    def update_best():
+        model.eval()
+        for metric in ["loss", "acc", "success"]:
+            if (
+                metric in ["acc", "success"]
+                and stats.get(f"{metric}/val", 0) > stats[f"{metric}/best"]
+            ) or (
+                metric in ["loss"]
+                and stats.get(f"{metric}/val", np.inf) < stats[f"{metric}/best"]
+            ):
+                stats[f"{metric}/best"] = stats[f"{metric}/val"]
+                model.save(log_dir / f"{metric}_best.pt")
+                model_copy = model.reconstruct(log_dir / f"{metric}_best.pt")
+                model_copy.eval()
+                jit_model = torch.jit.trace(model_copy, jit_trace_data)
+                jit_model.save(log_dir / f"{metric}_best_jit.pt")
+
+    # main loop
+    logger.info(f"start training for {cfg.num_epochs} epochs")
+    with tqdm(desc="training", total=cfg.num_epochs) as pbar:
+        for epoch in range(1, cfg.num_epochs + 1):
+            step_train()
+            step_val()
+            step_online_evaluation(epoch)
+            scheduler.step()
+            update_best()
+            # update log
+            wandb.log(stats)
+            msg = {k: v for k, v in stats.items() if not k.startswith("oe")}
+            msg["lr"] = scheduler.get_last_lr()[0]
+            pbar.set_postfix(**msg)
+            pbar.update(1)
+
+    logger.info(f"save results in {log_dir}")
+    wandb.finish()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,11 @@
+_target_: lagat.grid_config_generator.grid_config_generator_factory
+_convert_: all
+cands_num_agents: [32,48,64,80]
+obs_radius: 5
+collision_system: "soft"
+max_episode_steps: 128
+map_type_probs: [1.0]
+map_types:
+  - _target_: lagat.grid_config_generator.PredefinedMapRangeSettings
+    map_fpaths:
+      - assets/dense_maze.map

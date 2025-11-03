@@ -1,0 +1,54 @@
+project: lagat
+seed: 42
+
+defaults:
+  - expert: lacam3
+  - grid_config: random_maze_mixed
+  - model: gnn_planner
+  - _self_
+
+device: cpu
+wandb: false
+save_animation: False
+num_epochs: 10
+n_jobs: 10
+dataset_dir: null
+
+dataset_split:
+  _target_: torch.utils.data.random_split
+  lengths:
+    - 0.8  # train
+    - 0.2  # validation
+
+dataloader:
+  _target_: torch_geometric.loader.DataLoader
+  batch_size: 10
+  shuffle: True
+
+criterion:
+  _target_: torch.nn.CrossEntropyLoss
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1e-3
+  weight_decay: 5e-2
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  T_max: ${num_epochs}
+  eta_min: 1e-6
+
+online_evaluation:
+  use: True
+  num_samples: 10
+  every_epoch: 4
+  run_model:
+    max_episodes: 128
+    sampling_temperature: 1.0
+    animation: ${save_animation}
+    device: ${device}
+  dataset_aggregation: False
+
+hydra:
+  run:
+    dir: "outputs/train/${now:%Y-%m-%d_%H-%M-%S}"

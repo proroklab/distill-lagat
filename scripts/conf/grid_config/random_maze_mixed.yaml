@@ -1,0 +1,28 @@
+_target_: lagat.grid_config_generator.grid_config_generator_factory
+_convert_: all
+cands_num_agents: [16, 24, 32]
+obs_radius: 5
+collision_system: "soft"
+max_episode_steps: 128
+map_type_probs: [0.2, 0.8]
+map_types:
+  # random
+  - _target_: pogema_toolbox.generators.random_generator.MapRangeSettings
+    width_min: 17
+    width_max: 21
+    height_min: 17
+    height_max: 21
+    obstacle_density_min: 0.2
+    obstacle_density_max: 0.4
+  # maze
+  - _target_: pogema_toolbox.generators.maze_generator.MazeRangeSettings
+    width_min: 17
+    width_max: 21
+    height_min: 17
+    height_max: 21
+    obstacle_density_min: 0.2
+    obstacle_density_max: 1.0
+    wall_components_min: 1
+    wall_components_max: 8
+    go_straight_min: 0.75
+    go_straight_max: 0.85

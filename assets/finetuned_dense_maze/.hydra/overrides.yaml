@@ -1,0 +1,11 @@
+- wandb=true
+- device=cuda:1
+- dataset_dir=outputs/imitation_learning_dataset/dense_maze_1500
+- dataloader.batch_size=48
+- num_epochs=100
+- online_evaluation.num_samples=100
+- online_evaluation.dataset_aggregation=True
+- model=reconstruct
+- model.fpath=assets/pretrained/success_best.pt
+- grid_config=dense_maze
+- optimizer.lr=1e-5

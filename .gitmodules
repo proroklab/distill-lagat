@@ -1,0 +1,6 @@
+[submodule "cpp_planners/lagat/third_party/argparse"]
+	path = cpp_planners/lagat/third_party/argparse
+	url = https://github.com/p-ranav/argparse.git
+[submodule "cpp_planners/lacam3"]
+	path = cpp_planners/lacam3
+	url = https://github.com/kei18/lacam3

@@ -1,0 +1,7 @@
+- wandb=true
+- device=cuda:3
+- dataset_dir=outputs/imitation_learning_dataset/30k_obs5
+- dataloader.batch_size=48
+- num_epochs=300
+- online_evaluation.num_samples=500
+- online_evaluation.dataset_aggregation=True

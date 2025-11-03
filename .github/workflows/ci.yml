@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/**'
+
+jobs:
+  ci:
+    if: github.repository_owner == 'Kei18'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+        #
+      - name: Pytest
+        run: uv run pytest -s
+        #
+      - name: Collect raw data
+        run: uv run python scripts/collect_expert_trajectories.py
+      - name: Create dataset
+        run: uv run python scripts/convert_to_imitation_dataset.py
+      - name: Train model
+        run: uv run python scripts/train.py
+      - name: Evaluate model
+        run: uv run python scripts/eval_model.py
+        #
+      - name: Cache libtorch
+        id: cache-libtorch
+        uses: actions/cache@v4
+        with:
+          path: libtorch
+          key: libtorch-${{ runner.os }}-1.13.1-cxx11-shared-cpu
+      - name: Download libtorch (CPU)
+        if: steps.cache-libtorch.outputs.cache-hit != 'true'
+        run: |
+          set -eux
+          url="https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.13.1%2Bcpu.zip"
+          curl -L "$url" -o libtorch.zip
+          unzip -q libtorch.zip
+          rm libtorch.zip
+          #
+      - name: Build C++ LaGAT
+        env:
+          CMAKE_PREFIX_PATH: ${{ github.workspace }}/libtorch
+        run: |
+          cmake -B cpp_planners/lagat/build cpp_planners/lagat
+          make -C cpp_planners/lagat/build
+      - name: Run planner
+        run: |
+          latest=$(ls -t outputs/train/ | tail -1)
+          cpp_planners/lagat/build/main \
+          -v 3 \
+          -m assets/empty-8-8.map \
+          -o result.txt \
+          -t 10 \
+          -N 2 \
+          --model outputs/train/$latest/loss_best_jit.pt

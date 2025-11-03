@@ -1,0 +1,85 @@
+expert:
+  _target_: lagat.interfaces.lacam3.inference.LacamInference
+  _convert_: all
+  cfg:
+    _target_: lagat.interfaces.lacam3.inference.LacamInferenceConfig
+    timeouts:
+    - 1
+    - 5
+    time_limit: 30
+grid_config:
+  _target_: lagat.grid_config_generator.grid_config_generator_factory
+  _convert_: all
+  cands_num_agents:
+  - 16
+  - 24
+  - 32
+  obs_radius: 5
+  collision_system: soft
+  max_episode_steps: 128
+  map_type_probs:
+  - 0.2
+  - 0.8
+  map_types:
+  - _target_: pogema_toolbox.generators.random_generator.MapRangeSettings
+    width_min: 17
+    width_max: 21
+    height_min: 17
+    height_max: 21
+    obstacle_density_min: 0.2
+    obstacle_density_max: 0.4
+  - _target_: pogema_toolbox.generators.maze_generator.MazeRangeSettings
+    width_min: 17
+    width_max: 21
+    height_min: 17
+    height_max: 21
+    obstacle_density_min: 0.2
+    obstacle_density_max: 1.0
+    wall_components_min: 1
+    wall_components_max: 8
+    go_straight_min: 0.75
+    go_straight_max: 0.85
+model:
+  _target_: lagat.model.GNNPlanner
+  dim_hidden: 256
+  num_encoder_layers: 2
+  num_gnn_layers: 3
+  num_decoder_layers: 2
+  heads: 4
+project: lagat
+seed: 42
+device: cuda:3
+wandb: true
+save_animation: false
+num_epochs: 300
+n_jobs: 10
+dataset_dir: outputs/imitation_learning_dataset/30k_obs5
+dataset_split:
+  _target_: torch.utils.data.random_split
+  lengths:
+  - 0.8
+  - 0.2
+dataloader:
+  _target_: torch_geometric.loader.DataLoader
+  batch_size: 48
+  shuffle: true
+criterion:
+  _target_: torch.nn.CrossEntropyLoss
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 0.001
+  weight_decay: 0.05
+scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  T_max: ${num_epochs}
+  eta_min: 1.0e-06
+online_evaluation:
+  use: true
+  num_samples: 500
+  every_epoch: 4
+  run_model:
+    max_episodes: 128
+    sampling_temperature: 1.0
+    animation: ${save_animation}
+    device: ${device}
+  dataset_aggregation: true

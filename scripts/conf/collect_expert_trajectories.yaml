@@ -1,0 +1,13 @@
+seed: 42
+num_samples: 10
+save_animation: False
+
+defaults:
+  - expert: lacam3
+  - grid_config: random_maze_mixed
+  - _self_
+
+
+hydra:
+  run:
+    dir: "outputs/raw_expert_trajectories/${now:%Y-%m-%d_%H-%M-%S}"

@@ -1,0 +1,6 @@
+dataset_dir: null
+n_jobs: 10
+
+hydra:
+  run:
+    dir: "outputs/imitation_learning_dataset/${now:%Y-%m-%d_%H-%M-%S}"

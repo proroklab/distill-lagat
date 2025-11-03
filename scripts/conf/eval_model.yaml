@@ -1,0 +1,24 @@
+seed: 42
+
+defaults:
+  - grid_config: random_maze_mixed
+  - _self_
+
+device: cpu
+save_animation: False
+num_samples: 10
+
+model:
+  _target_: lagat.model.GNNPlanner.reconstruct
+  fpath: null
+  device: ${device}
+
+run_model:
+  max_episodes: 128
+  sampling_temperature: 1.0
+  animation: ${save_animation}
+  device: ${device}
+
+hydra:
+  run:
+    dir: "outputs/eval_model/${now:%Y-%m-%d_%H-%M-%S}"

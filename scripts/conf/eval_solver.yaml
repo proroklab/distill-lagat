@@ -1,0 +1,22 @@
+solver_name: planner
+solver_options:
+  - "--model"
+  - "assets/pretrained/loss_best_jit.pt"
+exec_file: cpp_planners/lagat/build/main
+time_limit_sec: 5
+n_jobs: 4
+num_min_agents: 50
+num_max_agents: 100
+num_interval_agents: 50
+num_scenarios: 25
+seed_start: 0
+seed_end: 0
+maps:
+  - random-32-32-10
+
+scen_dir: assets/scen
+map_dir: assets
+
+hydra:
+  run:
+    dir: "outputs/eval_solver/${now:%Y-%m-%d_%H-%M-%S}"
