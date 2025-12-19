@@ -175,13 +175,13 @@ uv run scripts/train.py \
     device=cuda \
     dataset_dir=/path/to/imitation_learning_dataset/ \
     dataloader.batch_size=48 \
-    num_epochs=100 \
+    num_epochs=300 \
     online_evaluation.num_samples=500 \
     online_evaluation.dataset_aggregation=True
 ```
 
 You can also check `assets/pretrained/.hydra/config.yaml`.
-The training was with NVIDIA GeForce RTX 2080 Ti, and it took ~45 hours.
+The training was with NVIDIA GeForce RTX 2080 Ti, and it took ~35 hours.
 The data collection was for a night.
 
 ### 4. Simple evaluation
