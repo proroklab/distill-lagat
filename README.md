@@ -25,6 +25,28 @@ The original LaGAT's code is available on [GitHub](https://github.com/proroklab/
 See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for an example Linux CPU build setup, especially for the C++ components.
 If available, it is recommended to install a GPU-compatible build of `libtorch` for faster execution.
 
+<details><summary>libtorch setup on aarch64 (e.g., NVIDIA DGX Spark)</summary>
+
+
+On aarch64 systems, prebuilt PyTorch / libtorch binaries are not always available.
+You need to build PyTorch from source.
+Please also refer to the official guide:
+https://github.com/pytorch/pytorch?tab=readme-ov-file#from-source
+
+Below is a minimal example for CUDA-enabled builds.
+
+```sh
+git clone --recursive https://github.com/pytorch/pytorch
+cd pytorch
+python3 -m venv ~/venv/pytorch-src
+source ~/venv/pytorch-src/bin/activate
+export TORCH_CUDA_ARCH_LIST="12.1" # should be aligned with your system
+python3 setup.py develop 
+export CMAKE_PREFIX_PATH="/path/to/pytorch:$CMAKE_PREFIX_PATH"
+```
+
+</details>
+
 ## Setup
 
 ```sh
@@ -36,6 +58,23 @@ After cloning this repo, run the following to complete the Python setup.
 ```sh
 uv sync
 ```
+
+<details><summary>For CUDA13</summary>
+
+You need to add the following lines to `pyproject.toml`.
+
+```toml
+[tool.uv.sources]
+pogema-toolbox = { git = "https://github.com/Kei18/pogema-toolbox.git" }
+torch = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+```
+
+</details>
 
 ## Simple demo
 
@@ -161,9 +200,17 @@ uv run scripts/train.py dataset_dir=/path/to/imitation_learning_dataset/ num_epo
 
 The results will be stored in `outputs/train`.
 
-With `wandb=true`, Weights & Biases will provide a nice dashboard for training log!
+With `wandb=true`, Weights & Biases will provide a nice dashboard for training log! 
 
 <img src="./assets/demo_wandb.png" width="600px" />
+
+Please check [wandb's Quickstart](https://wandb.ai/quickstart) for the initial setup. 
+After getting your API key, you can login with:
+
+```sh
+uv run wandb login
+```
+
 
 #### Pretrained model
 
@@ -312,6 +359,7 @@ Without model load on GPU, it requires ~1.5s, resulting in solution cost of 3.39
 However, this result is not appealing, given that lacam3 achieves solution cost of 2.9 within 2s.
 
 ```sh
+> cmake -B cpp_planners/lacam3/build cpp_planners/lacam3 && make -C cpp_planners/lacam3/build -j8
 > cpp_planners/lacam3/build/main -v 3 -m assets/dense_maze.map -o result.txt -N 128 -t 2 -s 1
 elapsed:  2025ms  solved        makespan: 79 (lb=33, ub=2.4)    sum_of_costs: 5625 (lb=1946, ub=2.9)    sum_of_loss: 4869 (lb=1946, ub=2.51)
 ```
@@ -337,6 +385,7 @@ This software is released under the MIT License, see [LICENSE.txt](LICENSE.txt).
 - For the development, I strongly recommend using [pre-commit](https://github.com/pre-commit/pre-commit).
 Once installed, it is setup with `pre-commit install`.
 - For C++ implementation, the grid maps and scenarios files follow [the MAPF benchmark](https://movingai.com/benchmarks/mapf.html) format.
+
 
 ## Citation
 
