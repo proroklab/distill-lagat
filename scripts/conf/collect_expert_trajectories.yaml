@@ -1,6 +1,7 @@
 seed: 42
 num_samples: 10
 save_animation: False
+dataset_size: 100  # -> 100MB
 
 defaults:
   - expert: lacam3
