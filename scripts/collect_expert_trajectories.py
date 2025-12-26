@@ -55,7 +55,7 @@ def main(cfg):
                 num_data += len(all_observations)
                 dataset.append((all_observations, all_actions, all_terminated))
                 num_success += 1
-            if len(dataset) >= 100:
+            if len(dataset) >= cfg.dataset_size:
                 save()
             pbar.set_postfix(
                 success_rate=f"{num_success / num_instances:.2f}",
