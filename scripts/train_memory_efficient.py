@@ -176,7 +176,12 @@ def main(cfg):
                 # dataset preparation
                 with open(fpath, "rb") as f:
                     pyg_dataset = pickle.load(f)
-                dataset_train, dataset_val = call(cfg.dataset_split, pyg_dataset)
+                dataset_train, dataset_val = call(
+                    cfg.dataset_split,
+                    pyg_dataset,
+                    # prevent data leak
+                    generator=torch.Generator().manual_seed(cfg.seed),
+                )
                 if len(dataset_train) == 0 or len(dataset_val) == 0:
                     continue
                 # add online aggregation data to training dataset
