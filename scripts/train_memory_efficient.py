@@ -2,6 +2,7 @@ import os
 import pickle
 from loguru import logger
 from glob import glob
+import random
 
 import hydra
 from hydra.utils import call
@@ -11,7 +12,6 @@ import wandb
 from tqdm import tqdm
 import torch
 import numpy as np
-from joblib import Parallel, delayed
 
 from torch_geometric.nn import summary
 from lagat.utils import set_global_seeds
@@ -63,45 +63,21 @@ def main(cfg):
     )
     logger.info(f"found {len(dataset_fpaths)} files")
 
-    # load dataset
-    def load_file(fpath):
-        with open(fpath, "rb") as f:
-            return pickle.load(f)
-
-    pyg_dataset_list = [
-        r
-        for r in tqdm(
-            Parallel(return_as="generator", n_jobs=cfg.n_jobs)(
-                [delayed(load_file)(fpath) for fpath in dataset_fpaths]
-            ),
-            desc="load pickle files",
-            total=len(dataset_fpaths),
-        )
-    ]
-    pyg_dataset = []
-    for d in pyg_dataset_list:
-        pyg_dataset.extend(d)
-
-    logger.info(f"load {len(pyg_dataset)} configurations in total")
+    with open(dataset_fpaths[0], "rb") as f:
+        dataset_example = pickle.load(f)
     jit_trace_data = dict(
         [
-            (k, pyg_dataset[0][k].clone().to("cpu"))
+            (k, dataset_example[0][k].clone().to("cpu"))
             for k in ["x", "edge_index", "edge_attr"]
         ]
     )
 
-    obs_radius = (pyg_dataset[0].x.size(-1) - 1) // 2
+    obs_radius = (dataset_example[0].x.size(-1) - 1) // 2
     logger.info(f"{obs_radius=}")
-
-    # data loader preparation
-    dataset_train, dataset_val = call(cfg.dataset_split, pyg_dataset)
-    dataloader_train = call(cfg.dataloader, dataset_train)
-    dataloader_val = call(cfg.dataloader, dataset_val)
-    logger.info(f"data size: train={len(dataset_train)}, val={len(dataset_val)}")
 
     # define model
     model = call(cfg.model, obs_radius=obs_radius).to(cfg.device)
-    print(summary(model, pyg_dataset[0].clone().to(cfg.device)))
+    print(summary(model, dataset_example[0].clone().to(cfg.device)))
     model = torch.compile(model)  # speed up
 
     # learning metrics
@@ -118,40 +94,15 @@ def main(cfg):
     stats["loss/best"] = np.inf
     stats["acc/best"] = 0
     stats["success/best"] = 0
-    stats["dataset_size/train"] = len(dataloader_train.dataset)
+    stats["dataset_size/train"] = 0
 
-    def step_train():
-        losses, accuracies = [], []
-        for batch in tqdm(dataloader_train, desc="step_train", leave=False):
-            batch = batch.to(cfg.device)
-            logits = model(batch)
-            loss = F.cross_entropy(logits, batch.y)
-            acc = (torch.argmax(logits, dim=1) == batch.y).float().mean()
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            losses.append(loss.item())
-            accuracies.append(acc.item())
-        stats["loss/train"] = np.mean(losses)
-        stats["acc/train"] = np.mean(accuracies)
-
-    @torch.no_grad()
-    def step_val():
-        losses, accuracies = [], []
-        for batch in tqdm(dataloader_val, desc="step_val", leave=False):
-            batch = batch.to(cfg.device)
-            logits = model(batch)
-            loss = F.cross_entropy(logits, batch.y)
-            acc = (torch.argmax(logits, dim=1) == batch.y).float().mean()
-            losses.append(loss.item())
-            accuracies.append(acc.item())
-        stats["loss/val"] = np.mean(losses)
-        stats["acc/val"] = np.mean(accuracies)
+    pyg_dataset_oe = []
 
     def step_online_evaluation(epoch: int):
         if epoch % oe.every_epoch != 0 or oe.use is False:
             return
-        pyg_dataset_oe = []
+
+        nonlocal pyg_dataset_oe
         stats["oe/success_rate"] = 0
         stats["oe/num_model_success"] = 0
         stats["oe/num_new_instances"] = 0
@@ -191,11 +142,6 @@ def main(cfg):
                 pbar.set_postfix(**msg)
                 pbar.update(1)
         stats["success/val"] = stats["oe/num_model_success"] / oe.num_samples
-        nonlocal dataloader_train
-        dataloader_train = call(
-            cfg.dataloader, ConcatDataset([dataset_train, pyg_dataset_oe])
-        )
-        stats["dataset_size/train"] = len(dataloader_train.dataset)
 
     @torch.no_grad()
     def update_best():
@@ -219,9 +165,64 @@ def main(cfg):
     logger.info(f"start training for {cfg.num_epochs} epochs")
     with tqdm(desc="training", total=cfg.num_epochs) as pbar:
         for epoch in range(1, cfg.num_epochs + 1):
-            step_train()
-            step_val()
+            losses_train, accuracies_train = [], []
+            losses_val, accuracies_val = [], []
+            random.shuffle(dataset_fpaths)
+            random.shuffle(pyg_dataset_oe)
+            stats["dataset_size/train"] = 0
+            for dataset_idx, fpath in enumerate(dataset_fpaths):
+                idx_str = f"{dataset_idx + 1:6d}/{len(dataset_fpaths)}"
+
+                # dataset preparation
+                with open(fpath, "rb") as f:
+                    pyg_dataset = pickle.load(f)
+                dataset_train, dataset_val = call(cfg.dataset_split, pyg_dataset)
+                # add online aggregation data to training dataset
+                L1, L2 = len(dataset_fpaths), len(pyg_dataset_oe)
+                oe_idx_from = int((dataset_idx / L1) * L2)
+                oe_idx_to = int(((dataset_idx + 1) / L1) * L2)
+                # create data loader
+                dataloader_train = call(
+                    cfg.dataloader,
+                    ConcatDataset(
+                        [dataset_train, pyg_dataset_oe[oe_idx_from:oe_idx_to]]
+                    ),
+                )
+                dataloader_val = call(cfg.dataloader, dataset_val)
+
+                # training
+                desc = f"{idx_str} step_train, dataset_size={len(dataset_train)}"
+                for batch in tqdm(dataloader_train, desc=desc, leave=False):
+                    batch = batch.to(cfg.device)
+                    logits = model(batch)
+                    loss = F.cross_entropy(logits, batch.y)
+                    acc = (torch.argmax(logits, dim=1) == batch.y).float().mean()
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+                    losses_train.append(loss.item())
+                    accuracies_train.append(acc.item())
+                    stats["dataset_size/train"] += len(batch)
+
+                # validation
+                desc = f"{idx_str} step_val, dataset_size={len(dataset_val)}"
+                with torch.no_grad():
+                    for batch in tqdm(dataloader_val, desc=desc, leave=False):
+                        batch = batch.to(cfg.device)
+                        logits = model(batch)
+                        loss = F.cross_entropy(logits, batch.y)
+                        acc = (torch.argmax(logits, dim=1) == batch.y).float().mean()
+                        losses_val.append(loss.item())
+                        accuracies_val.append(acc.item())
+
+            # online evaluation
             step_online_evaluation(epoch)
+
+            stats["loss/train"] = np.mean(losses_train)
+            stats["acc/train"] = np.mean(accuracies_train)
+            stats["loss/val"] = np.mean(losses_val)
+            stats["acc/val"] = np.mean(accuracies_val)
+
             scheduler.step()
             update_best()
             # update log
