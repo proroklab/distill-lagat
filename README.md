@@ -41,7 +41,7 @@ cd pytorch
 python3 -m venv ~/venv/pytorch-src
 source ~/venv/pytorch-src/bin/activate
 export TORCH_CUDA_ARCH_LIST="12.1" # should be aligned with your system
-python3 setup.py develop 
+python3 setup.py develop
 export CMAKE_PREFIX_PATH="/path/to/pytorch:$CMAKE_PREFIX_PATH"
 ```
 
@@ -61,7 +61,15 @@ uv sync
 
 <details><summary>For CUDA13</summary>
 
-You need to add the following lines to `pyproject.toml`.
+Easy fix:
+
+```sh
+uv pip install torch --torch-backend=auto
+uv run --no-sync python -c "import torch; print(torch.cuda.is_available())"
+```
+
+You need to use `--no-sync` flag every time.
+Or, you can add the following lines to `pyproject.toml`.
 
 ```toml
 [tool.uv.sources]
@@ -200,16 +208,31 @@ uv run scripts/train.py dataset_dir=/path/to/imitation_learning_dataset/ num_epo
 
 The results will be stored in `outputs/train`.
 
-With `wandb=true`, Weights & Biases will provide a nice dashboard for training log! 
+With `wandb=true`, Weights & Biases will provide a nice dashboard for training log!
 
 <img src="./assets/demo_wandb.png" width="600px" />
 
-Please check [wandb's Quickstart](https://wandb.ai/quickstart) for the initial setup. 
+Please check [wandb's Quickstart](https://wandb.ai/quickstart) for the initial setup.
 After getting your API key, you can login with:
 
 ```sh
 uv run wandb login
 ```
+
+> [!NOTE]
+> <strong>Memory Efficient Training</strong>:
+> `scripts/train.py` loads all tensor data into RAM.
+> If the dataset is large, training can become difficult (e.g. 30k instances require approximately 50 GB of memory).
+> In such cases, you can use `scripts/train_memory_efficient.py`.
+> While training may be slower, this approach allows you to handle much larger datasets.
+>
+> #### Empirical data using Nvidia DGX Spark
+> - `train.py`: 84 min for 20 epochs, 4.2 min/epoch
+> - `train_memory_efficient.py`: 146 min for 20 epochs, 7.3 min/epoch
+>
+> ```sh
+> uv run scripts/train.py device=cuda dataset_dir=outputs/imitation_learning_dataset/30k dataloader.batch_size=48 num_epochs=20 online_evaluation.use=false
+> ```
 
 
 #### Pretrained model
