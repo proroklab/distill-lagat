@@ -220,13 +220,14 @@ uv run wandb login
 ```
 
 > [!NOTE]
-> <strong>Memory Efficient Training</strong>:
+> ##### Memory Efficient Training
+>
 > `scripts/train.py` loads all tensor data into RAM.
 > If the dataset is large, training can become difficult (e.g. 30k instances require approximately 50 GB of memory).
 > In such cases, you can use `scripts/train_memory_efficient.py`.
 > While training may be slower, this approach allows you to handle much larger datasets.
 >
-> #### Empirical data using Nvidia DGX Spark
+> Empirical data using Nvidia DGX Spark:
 > - `train.py`: 84 min for 20 epochs, 4.2 min/epoch
 > - `train_memory_efficient.py`: 146 min for 20 epochs, 7.3 min/epoch
 >
