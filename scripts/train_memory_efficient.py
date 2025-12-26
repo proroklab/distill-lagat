@@ -177,6 +177,8 @@ def main(cfg):
                 with open(fpath, "rb") as f:
                     pyg_dataset = pickle.load(f)
                 dataset_train, dataset_val = call(cfg.dataset_split, pyg_dataset)
+                if len(dataset_train) == 0 or len(dataset_val) == 0:
+                    continue
                 # add online aggregation data to training dataset
                 L1, L2 = len(dataset_fpaths), len(pyg_dataset_oe)
                 oe_idx_from = int((dataset_idx / L1) * L2)
