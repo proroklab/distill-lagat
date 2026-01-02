@@ -1,7 +1,8 @@
 import ctypes
 import numpy as np
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
+
 from pydantic import Extra
 from pogema_toolbox.algorithm_config import AlgoBase
 
@@ -29,120 +30,99 @@ if not lib_lacam_path.exists():
 
 
 class LacamLib:
-    def __init__(self, lib_path, max_timesteps=None):
-        self.lib_path = lib_path
-        self.max_timesteps = max_timesteps
+    def __init__(self):
         self.load_library()
 
     def load_library(self):
-        self._lacam_lib = ctypes.CDLL(self.lib_path)
+        self._lacam_lib = ctypes.CDLL(lib_lacam_path)
 
         self._lacam_lib.run_lacam.argtypes = [
             ctypes.c_char_p,  # map_name
             ctypes.c_char_p,  # scene_name
             ctypes.c_int,  # N
             ctypes.c_float,  # time_limit_sec
+            ctypes.c_int,  # seed
+            ctypes.c_int,  # verbose
+            ctypes.c_int,  # flg_no_star
+            ctypes.c_int,  # pibt_num
+            ctypes.c_int,  # refiner_num
+            ctypes.c_int,  # flg_no_scatter
+            ctypes.c_int,  # scatter_margin
+            ctypes.c_float,  # random_insert_prob1
+            ctypes.c_float,  # random_insert_prob2
+            ctypes.c_int,  # flg_random_insert_init_node
+            ctypes.c_float,  # recursive_rate
+            ctypes.c_int,  # recursive_time_limit
         ]
         self._lacam_lib.run_lacam.restype = ctypes.c_char_p
 
-    def check_if_too_long(self, result_str, prefix=""):
-        if self.max_timesteps is None:
-            return False
-        num_timesteps = len(result_str.split("\n"))
-        if num_timesteps > self.max_timesteps:
-            print(
-                f"{prefix} | LaCAM returned a path too long ({num_timesteps} timesteps)."
-            )
-            return True
-        return False
-
-    def run_lacam(
-        self, map_file_content, scene_file_content, num_agents, lacam_timeouts
-    ):
+    def run_lacam(self, map_file_content, scene_file_content, num_agents, cfg):
         map_file_bytes = map_file_content.encode("utf-8")
         scenario_file_bytes = scene_file_content.encode("utf-8")
 
-        num_agents_int = ctypes.c_int(num_agents)
-        for i, time_limit_sec in enumerate(lacam_timeouts):
+        for time_limit_sec in cfg.timeouts:
             result = self._lacam_lib.run_lacam(
-                map_file_bytes, scenario_file_bytes, num_agents_int, time_limit_sec
+                map_file_bytes,
+                scenario_file_bytes,
+                ctypes.c_int(num_agents),
+                ctypes.c_float(time_limit_sec),
+                ctypes.c_int(cfg.seed),
+                ctypes.c_int(cfg.verbose),
+                ctypes.c_int(int(cfg.flg_no_star)),
+                ctypes.c_int(cfg.pibt_num),
+                ctypes.c_int(cfg.refiner_num),
+                ctypes.c_int(int(cfg.flg_no_scatter)),
+                ctypes.c_int(cfg.scatter_margin),
+                ctypes.c_float(cfg.random_insert_prob1),
+                ctypes.c_float(cfg.random_insert_prob2),
+                ctypes.c_int(int(cfg.flg_random_insert_init_node)),
+                ctypes.c_float(cfg.recursive_rate),
+                ctypes.c_int(cfg.recursive_time_limit),
             )
 
             try:
                 result_str = result.decode("utf-8")
             except Exception as e:
-                print(f"Exception occured while running Lacam: {e}")
+                print(f"Exception occured while running LaCAM: {e}")
                 raise e
 
-            prefix = f"Lacam failed to find path with time_limit_sec={time_limit_sec}"
-
             if "ERROR" in result_str:
-                print(f"{prefix} | {result_str}")
-            elif self.check_if_too_long(result_str, prefix=prefix):
-                if i == len(lacam_timeouts) - 1:
-                    return True, result_str
-            else:
-                return True, result_str
+                print(
+                    "LaCAM failed to find path with "
+                    f"time_limit_sec={time_limit_sec} | {result_str}"
+                )
+                continue
+
+            return True, result_str
 
         return False, None
 
 
-class LacamAgent:
-    def __init__(self, idx):
-        self._moves = GridConfig().MOVES
-        self._reverse_actions = {
-            tuple(self._moves[i]): i for i in range(len(self._moves))
-        }
-
-        self.idx = idx
-        self.previous_goal = None
-        self.path = []
-
-    def is_new_goal(self, new_goal):
-        return not self.previous_goal == new_goal
-
-    def set_new_goal(self, new_goal):
-        self.previous_goal = new_goal
-
-    def set_path(self, new_path):
-        self.path = new_path[::-1]
-
-    def format_task_string(self, start_xy, target_xy, map_shape):
-        task_file_content = (
-            f"{self.idx}	tmp.map	{map_shape[0]}	{map_shape[1]}	"
-        )
-        task_file_content += (
-            f"{start_xy[1]}	{start_xy[0]}	{target_xy[1]}	{target_xy[0]}	1\n"
-        )
-        return task_file_content
-
-    def get_action(self):
-        action = 0
-        if len(self.path) > 1:
-            x, y = self.path[-1]
-            tx, ty = self.path[-2]
-            action = self._reverse_actions[tx - x, ty - y]
-            self.path.pop()
-        return action
-
-    def clear_state(self):
-        self.previous_goal = None
-        self.path = []
-
-
-class LacamInferenceConfig(AlgoBase, extra=Extra.forbid):
+class Lacam3InferenceConfig(AlgoBase, extra=Extra.forbid):
     name: Literal["LaCAM"] = "LaCAM"
-    time_limit: float = 60
-    timeouts: list = [1.0, 5.0, 10.0, 60.0]
-    lacam_lib_path: Path = lib_lacam_path
-    max_timesteps: Optional[int] = None
+    timeouts: list[float] = [1.0, 5.0, 10.0, 60.0]
+    seed: int = 0
+    verbose: int = 0
+    flg_no_star: bool = False
+    pibt_num: int = 10
+    refiner_num: int = 4
+    flg_no_scatter: bool = False
+    scatter_margin: int = 10
+    random_insert_prob1: float = 0.001
+    random_insert_prob2: float = 0.01
+    flg_random_insert_init_node: bool = False
+    recursive_rate: float = 0.2
+    recursive_time_limit: int = 1
 
 
-class LacamInference:
-    def __init__(self, cfg: LacamInferenceConfig):
+class Lacam3Inference:
+    def __init__(self, cfg: Lacam3InferenceConfig):
         self.cfg = cfg
-        self.lacam_agents = None
-        self.lacam_lib = LacamLib(cfg.lacam_lib_path, cfg.max_timesteps)
+        self.lacam_lib = LacamLib()
+        self.output_data = None
+        self.step = 1
+        self.timed_out = False
+        self._moves = np.array(GridConfig().MOVES)
 
     def _parse_data(self, data):
         if data is None:
@@ -165,91 +145,31 @@ class LacamInference:
 
         return columns
 
-    def _find_near_goal(self, start_xy, target_xy, map_array, processed_targets):
-        for radius in range(1, 3):
-            offset_list = []
-            for x_offset in range(-radius, radius + 1):
-                for y_offset in range(-radius, radius + 1):
-                    if x_offset == 0 and y_offset == 0:
-                        continue
-                    offset_list.append((x_offset, y_offset))
+    def _get_next_move_single_agent(self, agent_id, step):
+        agent_path = self.output_data[agent_id]
+        if step >= len(agent_path):
+            return 0
 
-            offset_list.sort(
-                key=lambda xy_off: (abs(xy_off[0]) + abs(xy_off[1])) ** 0.5
-            )
+        old_pos = agent_path[step - 1]
+        new_pos = agent_path[step]
+        move = np.array(new_pos) - np.array(old_pos)
+        return np.nonzero(np.all(self._moves == move, axis=-1))[0].item()
 
-            for x_offset, y_offset in offset_list:
-                near_target_x = target_xy[0] + x_offset
-                near_target_y = target_xy[1] + y_offset
-                is_obstacle = map_array[near_target_x, near_target_y]
-                assert map_array[target_xy[0], target_xy[1]] == 0
-                if (
-                    not is_obstacle
-                    and (near_target_x, near_target_y) not in processed_targets
-                    and start_xy != (near_target_x, near_target_y)
-                ):
-                    return (near_target_x, near_target_y)
+    def _get_next_move(self, step, num_agents):
+        return [
+            self._get_next_move_single_agent(agent_id, step)
+            for agent_id in range(num_agents)
+        ]
 
     def act(self, observations, rewards=None, dones=None, info=None, skip_agents=None):
-        map_array = np.array(observations[0]["global_obstacles"])
-        agent_starts_xy = [obs["global_xy"] for obs in observations]
-        agent_targets_xy = [obs["global_target_xy"] for obs in observations]
+        num_agents = len(observations)
+        if self.output_data is None:
+            if self.timed_out:
+                return [0] * num_agents
 
-        has_new_tasks = False
-
-        processed_starts = set()
-        processed_targets = set()
-        if self.lacam_agents is None:
-            self.lacam_agents = [LacamAgent(idx) for idx in range(len(observations))]
-        # Process old tasks
-        agent_tasks_dict = {}
-        for idx, (start_xy, target_xy) in enumerate(
-            zip(agent_starts_xy, agent_targets_xy)
-        ):
-            if self.lacam_agents[idx].is_new_goal(target_xy):
-                continue
-            # if start_xy == target_xy or target_xy in processed_targets: # TODO: Check why this was here
-            if target_xy in processed_targets:
-                near_target_xy = self._find_near_goal(
-                    start_xy, target_xy, map_array, processed_targets
-                )
-                target_xy = near_target_xy
-
-            processed_starts.add(start_xy)
-            processed_targets.add(target_xy)
-
-            agent_task = self.lacam_agents[idx].format_task_string(
-                start_xy, target_xy, map_shape=map_array.shape
-            )
-            agent_tasks_dict[idx] = agent_task
-
-        # Process new tasks
-        for idx, (start_xy, target_xy) in enumerate(
-            zip(agent_starts_xy, agent_targets_xy)
-        ):
-            if not self.lacam_agents[idx].is_new_goal(target_xy):
-                continue
-            if target_xy in processed_targets:
-                near_target_xy = self._find_near_goal(
-                    start_xy, target_xy, map_array, processed_targets
-                )
-                target_xy = near_target_xy
-            self.lacam_agents[idx].set_new_goal(target_xy)
-            has_new_tasks = True
-
-            processed_starts.add(start_xy)
-            processed_targets.add(target_xy)
-
-            agent_task = self.lacam_agents[idx].format_task_string(
-                start_xy, target_xy, map_shape=map_array.shape
-            )
-            agent_tasks_dict[idx] = agent_task
-
-        task_file_content = "version 1\n"
-        for idx in range(len(self.lacam_agents)):
-            task_file_content += agent_tasks_dict[idx]
-
-        if has_new_tasks:
+            map_array = np.array(observations[0]["global_obstacles"])
+            agent_starts_xy = [obs["global_xy"] for obs in observations]
+            agent_targets_xy = [obs["global_target_xy"] for obs in observations]
 
             def map_row(row):
                 return "".join("@" if x else "." for x in row)
@@ -259,48 +179,36 @@ class LacamInference:
             map_file_content += f"\nheight {map_array.shape[0]}"
             map_file_content += f"\nwidth {map_array.shape[1]}"
             map_file_content += f"\nmap\n{map_content}"
+
+            task_file_content = "version 1\n"
+            for idx, (start_xy, target_xy) in enumerate(
+                zip(agent_starts_xy, agent_targets_xy)
+            ):
+                task_file_content += (
+                    f"{idx}	tmp.map	{map_array.shape[0]}	{map_array.shape[1]}	"
+                )
+                task_file_content += (
+                    f"{start_xy[1]}	{start_xy[0]}	"
+                    f"{target_xy[1]}	{target_xy[0]}	1\n"
+                )
+
             solved, lacam_results = self.lacam_lib.run_lacam(
                 map_file_content,
                 task_file_content,
-                len(self.lacam_agents),
-                self.cfg.timeouts,
+                num_agents,
+                self.cfg,
             )
             if solved:
-                agent_paths = self._parse_data(lacam_results)
-            else:
-                agent_paths = [
-                    [agent_starts_xy[i] for _ in range(256)]
-                    for i in range(len(agent_starts_xy))
-                ]  # if failed - agents just wait in start locations
-            if agent_paths is not None:
-                for idx, agent_path in enumerate(agent_paths):
-                    self.lacam_agents[idx].set_path(agent_path)
+                self.output_data = self._parse_data(lacam_results)
+            if self.output_data is None:
+                self.timed_out = True
+                return [0] * num_agents
 
-        return [agent.get_action() for agent in self.lacam_agents]
-
-    def after_step(self, dones):
-        pass
+        actions = self._get_next_move(self.step, num_agents)
+        self.step += 1
+        return actions
 
     def reset_states(self):
-        self.lacam_agents = None
-
-    def after_reset(self):
-        pass
-
-    def get_additional_info(self):
-        addinfo = {"rl_used": 0.0}
-        return addinfo
-
-
-class LacamInferencePerStep:
-    def __init__(self, cfg: LacamInferenceConfig):
-        self.cfg = cfg
-
-    def reset_states(self):
-        pass
-
-    def act(self, observations, rewards=None, dones=None, info=None, skip_agents=None):
-        lacam_inference = LacamInference(self.cfg)
-        lacam_inference.reset_states()
-
-        return lacam_inference.act(observations, rewards, dones, info, skip_agents)
+        self.output_data = None
+        self.step = 1
+        self.timed_out = False
