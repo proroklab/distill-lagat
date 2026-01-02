@@ -112,6 +112,7 @@ def main(cfg):
     oe = cfg.online_evaluation
     expert = instantiate(cfg.expert)
     grid_config_generator = instantiate(cfg.grid_config)
+    pyg_dataset_oe = []
 
     # stats
     stats = dict()
@@ -151,7 +152,7 @@ def main(cfg):
     def step_online_evaluation(epoch: int):
         if epoch % oe.every_epoch != 0 or oe.use is False:
             return
-        pyg_dataset_oe = []
+
         stats["oe/success_rate"] = 0
         stats["oe/num_model_success"] = 0
         stats["oe/num_new_instances"] = 0

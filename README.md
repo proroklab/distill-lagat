@@ -277,7 +277,7 @@ Our small GNN planner looks decent.
 
 <img src="./assets/demo_pretrained.svg" width="200px" />
 
-### 6. Integrate with search
+### 5. Integrate with search
 
 Now, let's integrate the trained GNN policy into the LaCAM search.
 The compilation is as follows:
@@ -308,7 +308,7 @@ mapf-visualizer assets/random-32-32-20.map ./result.txt
 <img src="./assets/demo_lagat.gif" width="200px" />
 
 
-### 7. Benchmarking LaGAT
+### 6. Benchmarking LaGAT
 
 Finally, let's evaluate the planner.
 The following performs simple benchmarking:
