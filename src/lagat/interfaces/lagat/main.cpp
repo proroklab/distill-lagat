@@ -16,20 +16,20 @@ const char* run_lagat(const char* map_content_cstr,
                       const char* scene_content_cstr, int N,
                       float time_limit_sec, int seed,
                       const char* model_path_cstr, int deadlock_detection,
-                      int deadlock_depth, int lns, int plns_num_refiners);
+                      int deadlock_depth, int lns, int plns_num_refiners,
+                      int verbose);
 }
 
 const char* run_lagat(const char* map_content_cstr,
                       const char* scene_content_cstr, int N,
                       float time_limit_sec, int seed,
                       const char* model_path_cstr, int deadlock_detection,
-                      int deadlock_depth, int lns, int plns_num_refiners)
+                      int deadlock_depth, int lns, int plns_num_refiners,
+                      int verbose)
 {
   std::string map_content(map_content_cstr);
   std::string scene_content(scene_content_cstr);
   std::string model_path = model_path_cstr ? model_path_cstr : "";
-
-  const int verbose = 10;
 
   // setup instance
   std::ofstream ins_file;
