@@ -29,7 +29,7 @@ const char* run_lagat(const char* map_content_cstr,
   std::string scene_content(scene_content_cstr);
   std::string model_path = model_path_cstr ? model_path_cstr : "";
 
-  const int verbose = 0;
+  const int verbose = 10;
 
   // setup instance
   std::ofstream ins_file;

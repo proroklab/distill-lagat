@@ -191,31 +191,7 @@ class LagatInference:
         self.step += 1
         return actions
 
-    def after_step(self, dones):
-        pass
-
     def reset_states(self):
         self.output_data = None
         self.step = 1
         self.timed_out = False
-
-    def after_reset(self):
-        pass
-
-    def get_additional_info(self):
-        addinfo = {"rl_used": 0.0}
-        return addinfo
-
-
-class LagatInferencePerStep:
-    def __init__(self, cfg: LagatInferenceConfig):
-        self.cfg = cfg
-
-    def reset_states(self):
-        pass
-
-    def act(self, observations, rewards=None, dones=None, info=None, skip_agents=None):
-        lagat_inference = LagatInference(self.cfg)
-        lagat_inference.reset_states()
-
-        return lagat_inference.act(observations, rewards, dones, info, skip_agents)

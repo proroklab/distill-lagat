@@ -1,4 +1,5 @@
 from pathlib import Path
+import platform
 
 from pogema import GridConfig
 from lagat.interfaces.lacam3.inference import LacamInference, LacamInferenceConfig
@@ -45,7 +46,10 @@ def test_lacam3():
 
 def test_lagat():
     grid_config = _make_grid_config()
-    model_path = Path(__file__).parents[1] / "assets/pretrained/loss_best_jit.pt"
+    if platform.system() == "Darwin":
+        model_path = None
+    else:
+        model_path = Path(__file__).parents[1] / "assets/pretrained/loss_best_jit.pt"
     cfg = LagatInferenceConfig(time_limit=5.0, model_path=model_path)
     planner = LagatInference(cfg)
     success = _run_and_save(planner, grid_config, "solution_example_lagat.svg")
