@@ -40,6 +40,7 @@ git clone --recursive https://github.com/pytorch/pytorch
 cd pytorch
 python3 -m venv ~/venv/pytorch-src
 source ~/venv/pytorch-src/bin/activate
+pip install setuptools typing_extensions pyyaml
 export TORCH_CUDA_ARCH_LIST="12.1" # should be aligned with your system
 python3 setup.py develop
 export CMAKE_PREFIX_PATH="/path/to/pytorch:$CMAKE_PREFIX_PATH"
