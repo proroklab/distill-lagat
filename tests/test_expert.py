@@ -2,7 +2,7 @@ from pathlib import Path
 import platform
 
 from pogema import GridConfig
-from lagat.interfaces.lacam3.inference import LacamInference, LacamInferenceConfig
+from lagat.interfaces.lacam3.inference import Lacam3Inference, Lacam3InferenceConfig
 from lagat.interfaces.lagat.inference import LagatInference, LagatInferenceConfig
 from lagat.run_planners import run_full_horizon_planner as run_expert
 
@@ -37,8 +37,8 @@ def _run_and_save(planner, grid_config, output_name):
 
 def test_lacam3():
     grid_config = _make_grid_config()
-    cfg = LacamInferenceConfig(timeouts=[5])
-    planner = LacamInference(cfg)
+    cfg = Lacam3InferenceConfig(timeouts=[5.0])
+    planner = Lacam3Inference(cfg)
     success = _run_and_save(planner, grid_config, "solution_example_lacam3.svg")
 
     assert success, "Failed to solve"
