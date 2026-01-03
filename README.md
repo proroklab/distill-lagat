@@ -311,7 +311,14 @@ mapf-visualizer assets/random-32-32-20.map ./result.txt
 ### 6. Benchmarking LaGAT
 
 Finally, let's evaluate the planner.
-The following performs simple benchmarking:
+If you need to generate scenarios for benchmarking, you can create MAPF benchmark-style `.scen` files from a map using:
+
+```sh
+uv run scripts/generate_mapf_instances.py --map assets/random-32-32-20.map
+```
+
+By default, this creates `.scen` files in `outputs/scen`, each containing as many agents as free cells in the map.
+Then, the following performs simple benchmarking:
 
 ```sh
 uv run scripts/eval_solver.py \
