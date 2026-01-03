@@ -435,6 +435,18 @@ This software is released under the MIT License, see [LICENSE.txt](LICENSE.txt).
 Once installed, it is setup with `pre-commit install`.
 - For C++ implementation, the grid maps and scenarios files follow [the MAPF benchmark](https://movingai.com/benchmarks/mapf.html) format.
 
+### Optional: LaGAT interface test
+
+The LaGAT expert test requires a working libtorch setup.
+Enable it explicitly:
+
+```sh
+LAGAT_RUN_LAGAT_TESTS=1 uv run pytest -s tests/test_expert.py::test_lagat
+```
+
+This has only been verified on NVIDIA DGX Spark.
+MacOS is unverified and may fail.
+
 
 ## Citation
 
