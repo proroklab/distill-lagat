@@ -62,36 +62,42 @@ class LagatLib:
         scenario_file_bytes = scene_file_content.encode("utf-8")
         model_path = str(cfg.model_path) if cfg.model_path else ""
 
-        result = self._lagat_lib.run_lagat(
-            map_file_bytes,
-            scenario_file_bytes,
-            ctypes.c_int(num_agents),
-            ctypes.c_float(cfg.time_limit),
-            ctypes.c_int(cfg.seed),
-            model_path.encode("utf-8"),
-            ctypes.c_int(int(cfg.deadlock_detection)),
-            ctypes.c_int(cfg.deadlock_depth),
-            ctypes.c_int(int(cfg.lns)),
-            ctypes.c_int(cfg.plns_num_refiners),
-            ctypes.c_int(cfg.verbose),
-        )
+        for time_limit_sec in cfg.timeouts:
+            result = self._lagat_lib.run_lagat(
+                map_file_bytes,
+                scenario_file_bytes,
+                ctypes.c_int(num_agents),
+                ctypes.c_float(time_limit_sec),
+                ctypes.c_int(cfg.seed),
+                model_path.encode("utf-8"),
+                ctypes.c_int(int(cfg.deadlock_detection)),
+                ctypes.c_int(cfg.deadlock_depth),
+                ctypes.c_int(int(cfg.lns)),
+                ctypes.c_int(cfg.plns_num_refiners),
+                ctypes.c_int(cfg.verbose),
+            )
 
-        try:
-            result_str = result.decode("utf-8")
-        except Exception as e:
-            print(f"Exception occured while running LaGAT: {e}")
-            raise e
+            try:
+                result_str = result.decode("utf-8")
+            except Exception as e:
+                print(f"Exception occured while running LaGAT: {e}")
+                raise e
 
-        if "ERROR" in result_str:
-            print(f"LaGAT failed to find path | {result_str}")
-            return False, None
+            if "ERROR" in result_str:
+                print(
+                    "LaGAT failed to find path with "
+                    f"time_limit_sec={time_limit_sec} | {result_str}"
+                )
+                continue
 
-        return True, result_str
+            return True, result_str
+
+        return False, None
 
 
 class LagatInferenceConfig(AlgoBase, extra=Extra.forbid):
     name: Literal["LaGAT"] = "LaGAT"
-    time_limit: float = 3.0
+    timeouts: list[float] = [3.0]
     seed: int = 0
     model_path: Optional[Path] = None
     deadlock_detection: bool = True
@@ -170,9 +176,7 @@ class LagatInference:
             for idx, (start_xy, target_xy) in enumerate(
                 zip(agent_starts_xy, agent_targets_xy)
             ):
-                task_file_content += (
-                    f"{idx}	tmp.map	{map_array.shape[0]}	{map_array.shape[1]}	"
-                )
+                task_file_content += f"{idx}	tmp.map	{map_array.shape[0]}	{map_array.shape[1]}	"
                 task_file_content += (
                     f"{start_xy[1]}	{start_xy[0]}	"
                     f"{target_xy[1]}	{target_xy[0]}	1\n"

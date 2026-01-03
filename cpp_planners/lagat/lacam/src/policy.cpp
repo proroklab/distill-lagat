@@ -153,9 +153,18 @@ void AgentPolicy::set_features(const Config& Q)
   // for edge construction
   for (int i = 0; i < N; ++i) occupied_now[Q[i]->id] = i;
 
-  static torch::Tensor node_feature =
-      torch::zeros({N, 2, fov_size, fov_size}, torch::kFloat32);
-  static auto X = node_feature.accessor<float, 4>();
+  static torch::Tensor node_feature;
+  static int cached_N = -1;
+  static int cached_fov_size = -1;
+  if (!node_feature.defined() || cached_N != N || cached_fov_size != fov_size) {
+    node_feature = torch::zeros({N, 2, fov_size, fov_size}, torch::kFloat32);
+    cached_N = N;
+    cached_fov_size = fov_size;
+    inference_cnt = 0;
+  } else {
+    node_feature.zero_();
+  }
+  auto X = node_feature.accessor<float, 4>();
 
   int edge_ptr = 0;
   std::vector<std::pair<int, int>> vec_edge_index;
