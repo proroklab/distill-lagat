@@ -24,20 +24,6 @@ jobs:
       - name: Install the project
         run: uv sync --locked --all-extras --dev
         #
-      - name: Pytest
-        run: |
-          scripts/build_cpp.sh --interfaces
-          uv run pytest -s
-        #
-      - name: Collect raw data
-        run: uv run python scripts/collect_expert_trajectories.py
-      - name: Create dataset
-        run: uv run python scripts/convert_to_imitation_dataset.py
-      - name: Train model
-        run: uv run python scripts/train.py
-      - name: Evaluate model
-        run: uv run python scripts/eval_model.py
-        #
       - name: Cache libtorch
         id: cache-libtorch
         uses: actions/cache@v4
@@ -53,14 +39,26 @@ jobs:
           unzip -q libtorch.zip
           rm libtorch.zip
           #
+      - name: Pytest
+        env:
+          CMAKE_PREFIX_PATH: ${{ github.workspace }}/libtorch
+        run: |
+          uv run pytest -s
+        #
+      - name: Collect raw data
+        run: uv run python scripts/collect_expert_trajectories.py
+      - name: Create dataset
+        run: uv run python scripts/convert_to_imitation_dataset.py
+      - name: Train model
+        run: uv run python scripts/train.py
+      - name: Evaluate model
+        run: uv run python scripts/eval_model.py
+        #
       - name: Build C++ LaGAT
         env:
           CMAKE_PREFIX_PATH: ${{ github.workspace }}/libtorch
         run: |
           scripts/build_cpp.sh --planner-lagat
-      - name: Build C++ interfaces
-        run: |
-          scripts/build_cpp.sh --interfaces
       - name: Run planner
         run: |
           latest=$(ls -t outputs/train/ | tail -1)

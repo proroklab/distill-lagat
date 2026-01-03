@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 
 try:
     import tomllib
@@ -38,11 +39,15 @@ def resolve_cpp_lib_path(
 def ensure_lib_exists(lib_path: Path, interface_key: str) -> None:
     if lib_path.exists():
         return
+    repo_root = _find_repo_root(lib_path)
+    script = repo_root / "scripts/build_cpp.sh"
+    subprocess.run([str(script), f"--{interface_key}"], check=True, cwd=repo_root)
+    if lib_path.exists():
+        return
     preset = f"interface-{interface_key}"
-    script = Path("scripts/build_cpp.sh")
     raise RuntimeError(
         "C++ interface library not found at "
-        f"{lib_path}. Build it with `{script} --{interface_key}` "
+        f"{lib_path}. Auto-build failed. Try `{script} --{interface_key}` "
         "or "
         f"`cmake -S src/lagat/interfaces/{interface_key} --preset {preset} "
         f"&& cmake --build --preset {preset}`."
