@@ -24,6 +24,7 @@ The original LaGAT's code is available on [GitHub](https://github.com/proroklab/
 
 See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for an example Linux CPU build setup, especially for the C++ components.
 If available, it is recommended to install a GPU-compatible build of `libtorch` for faster execution.
+The C++ artifacts are built into `build/` (e.g., `build/lagat`, `build/lacam3`, `build/interface-lagat`, `build/interface-lacam3`).
 
 <details><summary>libtorch setup on aarch64 (e.g., NVIDIA DGX Spark)</summary>
 
@@ -38,8 +39,9 @@ Below is a minimal example for CUDA-enabled builds.
 ```sh
 git clone --recursive https://github.com/pytorch/pytorch
 cd pytorch
-python3 -m venv ~/venv/pytorch-src
-source ~/venv/pytorch-src/bin/activate
+python3 -m venv .venv/pytorch-src
+source .venv/pytorch-src/bin/activate
+pip install --group dev
 export TORCH_CUDA_ARCH_LIST="12.1" # should be aligned with your system
 python3 setup.py develop
 export CMAKE_PREFIX_PATH="/path/to/pytorch:$CMAKE_PREFIX_PATH"
@@ -107,6 +109,23 @@ To make the research easy, the repo uses the following.
 - GNN is implemented with [PyG](https://github.com/pyg-team/pytorch_geometric)
 - The parameter configuration is with [Hydra](https://hydra.cc/).
 - Training logging can be monitored with [Weights & Biases](https://github.com/wandb/wandb).
+
+## Directory layout
+
+```
+.
+├─ src/                       # Python source code
+├─ scripts/                   # CLI entry points + build helpers
+├─ cpp_planners/              # C++ planners (LaCAM/LaGAT)
+├─ assets/                    # maps, pretrained models, demo artifacts
+├─ outputs/                   # generated datasets and run outputs
+├─ tests/                     # pytest-based checks
+└─ build/
+   ├─ interface-lacam3/       # Python LaCAM interface shared library
+   ├─ interface-lagat/        # Python LaGAT interface shared library
+   ├─ lacam3/                 # LaCAM3 planner binary (main)
+   └─ lagat/                  # LaGAT planner binary (main)
+```
 
 
 ## Workflow
@@ -283,14 +302,13 @@ Now, let's integrate the trained GNN policy into the LaCAM search.
 The compilation is as follows:
 
 ```sh
-cmake -B cpp_planners/lagat/build cpp_planners/lagat
-make -C cpp_planners/lagat/build -j8
+scripts/build_cpp.sh --planner-lagat
 ```
 
 Then, run it using the following command:
 
 ```sh
-cpp_planners/lagat/build/main -v 3 \
+build/lagat/main -v 3 \
     -m assets/random-32-32-20.map \
     -o result.txt \
     -N 100 \
@@ -382,7 +400,7 @@ With 1.5K instances, the training required 5 hours.
 Using the pre-trained model, LaGAT can solve a dense setup with 128 agents.
 
 ```sh
-> CUDA_VISIBLE_DEVICES=3 cpp_planners/lagat/build/main -v 3 -m assets/dense_maze.map -o result.txt -N 128 -t 30 --model assets/pretrained/loss_best_jit.pt -s 1
+> CUDA_VISIBLE_DEVICES=3 build/lagat/main -v 3 -m assets/dense_maze.map -o result.txt -N 128 -t 30 --model assets/pretrained/loss_best_jit.pt -s 1
 elapsed:  5418ms  solved        comp_time_ms: 5406 (wo/model load: 1444ms)      makespan: 99 (lb=33, ub=3)      sum_of_costs: 6583 (lb=1946, ub=3.39)   sum_of_loss: 5329 (lb=1946, ub=2.74)
 ```
 
@@ -390,8 +408,8 @@ Without model load on GPU, it requires ~1.5s, resulting in solution cost of 3.39
 However, this result is not appealing, given that lacam3 achieves solution cost of 2.9 within 2s.
 
 ```sh
-> cmake -B cpp_planners/lacam3/build cpp_planners/lacam3 && make -C cpp_planners/lacam3/build -j8
-> cpp_planners/lacam3/build/main -v 3 -m assets/dense_maze.map -o result.txt -N 128 -t 2 -s 1
+> scripts/build_cpp.sh --planner-lacam3
+> build/lacam3/main -v 3 -m assets/dense_maze.map -o result.txt -N 128 -t 2 -s 1
 elapsed:  2025ms  solved        makespan: 79 (lb=33, ub=2.4)    sum_of_costs: 5625 (lb=1946, ub=2.9)    sum_of_loss: 4869 (lb=1946, ub=2.51)
 ```
 
@@ -399,7 +417,7 @@ With the fine-tuned model, LaGAT achieves solution cost of 2.36 in 0.6s (excludi
 This outperforms lacam3!
 
 ```sh
-> CUDA_VISIBLE_DEVICES=3 cpp_planners/lagat/build/main -v 3 -m assets/dense_maze.map -o result.txt -N 128 -t 30 --model assets/finetuned_dense_maze/loss_best_jit.pt -s 1
+> CUDA_VISIBLE_DEVICES=3 build/lagat/main -v 3 -m assets/dense_maze.map -o result.txt -N 128 -t 30 --model assets/finetuned_dense_maze/loss_best_jit.pt -s 1
 elapsed:  4436ms  solved        comp_time_ms: 4426 (wo/model load: 561ms)       makespan: 66 (lb=33, ub=2)      sum_of_costs: 5774 (lb=1946, ub=2.97)   sum_of_loss: 4578 (lb=1946, ub=2.36)
 ```
 

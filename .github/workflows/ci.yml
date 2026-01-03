@@ -56,12 +56,14 @@ jobs:
         env:
           CMAKE_PREFIX_PATH: ${{ github.workspace }}/libtorch
         run: |
-          cmake -B cpp_planners/lagat/build cpp_planners/lagat
-          make -C cpp_planners/lagat/build
+          scripts/build_cpp.sh --planner-lagat
+      - name: Build C++ interfaces
+        run: |
+          scripts/build_cpp.sh --interfaces
       - name: Run planner
         run: |
           latest=$(ls -t outputs/train/ | tail -1)
-          cpp_planners/lagat/build/main \
+          build/lagat/main \
           -v 3 \
           -m assets/empty-8-8.map \
           -o result.txt \

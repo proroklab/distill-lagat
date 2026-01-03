@@ -2,7 +2,7 @@ solver_name: planner
 solver_options:
   - "--model"
   - "assets/pretrained/loss_best_jit.pt"
-exec_file: cpp_planners/lagat/build/main
+exec_file: build/lagat/main
 time_limit_sec: 5
 n_jobs: 4
 num_min_agents: 50

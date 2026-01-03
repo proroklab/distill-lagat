@@ -19,6 +19,8 @@ CMakeCache.txt
 # Distribution / packaging
 .Python
 build/
+!build/.gitkeep
+cpp_planners/.build/
 develop-eggs/
 dist/
 downloads/

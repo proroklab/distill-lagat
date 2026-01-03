@@ -3,13 +3,13 @@ import numpy as np
 from pathlib import Path
 from typing import Literal, Optional
 
+from lagat.interfaces.cpp_build_config import ensure_lib_exists, resolve_cpp_lib_path
 from pydantic import Extra
 from pogema_toolbox.algorithm_config import AlgoBase
 
 from pogema import GridConfig
 
 import platform
-import subprocess
 
 if platform.system() == "Darwin":  # macOS
     LAGAT_LIB_FILENAME = "libplanner.dylib"
@@ -20,13 +20,10 @@ else:
 
 
 calling_script_dir = Path(__file__).parent
-lib_lagat_path = calling_script_dir / "build" / LAGAT_LIB_FILENAME
-
-if not lib_lagat_path.exists():
-    cmake_cmd = ["cmake", "-B", "build"]
-    subprocess.run(cmake_cmd, check=True, cwd=calling_script_dir)
-    make_cmd = ["make", "-C", "build", "-j8"]
-    subprocess.run(make_cmd, check=True, cwd=calling_script_dir)
+lib_lagat_path = resolve_cpp_lib_path(
+    calling_script_dir, "lagat", "interfaces/lagat", LAGAT_LIB_FILENAME
+)
+ensure_lib_exists(lib_lagat_path, "lagat")
 
 
 class LagatLib:
