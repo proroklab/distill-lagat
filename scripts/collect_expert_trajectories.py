@@ -1,3 +1,4 @@
+import csv
 import pickle
 import numpy as np
 from tqdm import tqdm
@@ -8,7 +9,10 @@ import hydra
 from hydra.utils import instantiate
 from pathlib import Path
 
-from lagat.run_planners import run_full_horizon_planner as run_expert
+from lagat.run_planners import (
+    get_solution_quality,
+    run_full_horizon_planner as run_expert,
+)
 
 
 @hydra.main(
@@ -29,6 +33,7 @@ def main(cfg):
     result_file_num = 0
     num_data = 0
     num_success = 0
+    csv_path = log_dir / "solution_quality.csv"
 
     def save():
         nonlocal result_file_num, dataset
@@ -38,37 +43,70 @@ def main(cfg):
             dataset = []
 
     num_instances = 0
-    with tqdm(total=cfg.num_samples) as pbar:
-        while num_success < cfg.num_samples:
-            num_instances += 1
-            seed = rng.integers(np.iinfo(np.int64).max)
-            grid_config = grid_config_generator(seed)
-            env, all_actions, all_observations, all_terminated = run_expert(
-                expert,
-                grid_config=grid_config,
-                animation=cfg.save_animation,
-            )
-            if cfg.save_animation:
-                env.save_animation(log_dir / f"animation/{num_instances:06d}.svg")
-            success = all(all_terminated[-1])
-            if success:
-                num_data += len(all_observations)
-                dataset.append((all_observations, all_actions, all_terminated))
-                num_success += 1
-            if len(dataset) >= cfg.dataset_size:
-                save()
-            pbar.set_postfix(
-                success_rate=f"{num_success / num_instances:.2f}",
-                num_data=num_data,
-                num_instances=num_instances,
-                result_file_num=result_file_num,
-            )
-            pbar.update(1 if success else 0)
+    with open(csv_path, "w", newline="") as csv_file:
+        csv_writer = csv.DictWriter(
+            csv_file,
+            fieldnames=[
+                "instance_id",
+                "seed",
+                "num_agents",
+                "solved",
+                "sum_of_costs",
+                "sum_of_costs_lb",
+                "sum_of_costs_subopt",
+                "makespan",
+                "makespan_lb",
+                "makespan_subopt",
+            ],
+        )
+        csv_writer.writeheader()
+        with tqdm(total=cfg.num_samples) as pbar:
+            while num_success < cfg.num_samples:
+                num_instances += 1
+                seed = rng.integers(np.iinfo(np.int64).max)
+                grid_config = grid_config_generator(seed)
+                env, all_actions, all_observations, all_terminated = run_expert(
+                    expert,
+                    grid_config=grid_config,
+                    animation=cfg.save_animation,
+                )
+                if cfg.save_animation:
+                    env.save_animation(log_dir / f"animation/{num_instances:06d}.svg")
+
+                quality = get_solution_quality(
+                    all_actions,
+                    all_observations,
+                    all_terminated,
+                )
+                csv_writer.writerow(
+                    {
+                        "instance_id": num_instances,
+                        "seed": int(seed),
+                        "num_agents": len(all_observations[0]),
+                        **quality,
+                    }
+                )
+
+                success = quality["solved"]
+                if success:
+                    num_data += len(all_observations)
+                    dataset.append((all_observations, all_actions, all_terminated))
+                    num_success += 1
+                if len(dataset) >= cfg.dataset_size:
+                    save()
+                pbar.set_postfix(
+                    success_rate=f"{num_success / num_instances:.2f}",
+                    num_data=num_data,
+                    num_instances=num_instances,
+                    result_file_num=result_file_num,
+                )
+                pbar.update(1 if success else 0)
 
     logger.info(
         f"{cfg.num_samples} samples ({num_data} configurations) were successfully added to the dataset"
     )
     save()
+
     logger.info(f"save data in {log_dir}")
 
 
