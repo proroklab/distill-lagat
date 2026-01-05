@@ -9,10 +9,9 @@ from lagat.run_planners import run_full_horizon_planner as run_expert
 
 
 def _make_grid_config():
-    obs_radius = 5
     grid_config = GridConfig(
         num_agents=5,
-        obs_radius=obs_radius,
+        obs_radius=5,
         seed=0,
         observation_type="MAPF",
         on_target="nothing",
