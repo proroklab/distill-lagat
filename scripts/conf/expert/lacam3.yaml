@@ -2,4 +2,4 @@ _target_: lagat.interfaces.lacam3.inference.Lacam3Inference
 _convert_: all
 cfg:
   _target_: lagat.interfaces.lacam3.inference.Lacam3InferenceConfig
-  timeouts: [1, 5]
+  timeouts: [5]

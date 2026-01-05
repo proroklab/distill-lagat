@@ -2,7 +2,7 @@ _target_: lagat.interfaces.lagat.inference.LagatInference
 _convert_: all
 cfg:
   _target_: lagat.interfaces.lagat.inference.LagatInferenceConfig
-  timeouts: [1, 5, 30]
+  timeouts: [5]
   model_path: null
   deadlock_depth: 3
   lns: true
