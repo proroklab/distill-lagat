@@ -28,25 +28,10 @@ The C++ artifacts are built into `build/` (e.g., `build/lagat`, `build/lacam3`, 
 
 <details><summary>libtorch setup on aarch64 (e.g., NVIDIA DGX Spark)</summary>
 
-
 On aarch64 systems, prebuilt PyTorch / libtorch binaries are not always available.
 You need to build PyTorch from source.
-Please also refer to the official guide:
-https://github.com/pytorch/pytorch?tab=readme-ov-file#from-source
-
-Below is a minimal example for CUDA-enabled builds.
-
-```sh
-git clone --recursive https://github.com/pytorch/pytorch
-cd pytorch
-python3 -m venv .venv/pytorch-src
-source .venv/pytorch-src/bin/activate
-pip install --group dev
-export TORCH_CUDA_ARCH_LIST="12.1" # should be aligned with your system
-python3 setup.py develop
-export CMAKE_PREFIX_PATH="/path/to/pytorch:$CMAKE_PREFIX_PATH"
-```
-
+Please also refer to [the official guide](https://github.com/pytorch/pytorch?tab=readme-ov-file#from-source) 
+or [my gist](https://gist.github.com/Kei18/1aa7503bc3628b4e1cbccaaae3ee8327)
 </details>
 
 ## Setup
