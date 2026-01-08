@@ -1,7 +1,4 @@
 from pathlib import Path
-import os
-
-import pytest
 from pogema import GridConfig
 from lagat.interfaces.lacam3.inference import Lacam3Inference, Lacam3InferenceConfig
 from lagat.interfaces.lagat.inference import LagatInference, LagatInferenceConfig
@@ -44,10 +41,6 @@ def test_lacam3():
     assert success, "Failed to solve"
 
 
-@pytest.mark.skipif(
-    os.getenv("LAGAT_RUN_LAGAT_TESTS") != "1",
-    reason="Enable with LAGAT_RUN_LAGAT_TESTS=1 (requires libtorch setup).",
-)
 def test_lagat():
     grid_config = _make_grid_config()
     model_path = Path(__file__).parents[1] / "assets/pretrained/loss_best_jit.pt"
