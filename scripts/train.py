@@ -122,6 +122,7 @@ def main(cfg):
     stats["dataset_size/train"] = len(dataloader_train.dataset)
 
     def step_train():
+        model.train()
         losses, accuracies = [], []
         for batch in tqdm(dataloader_train, desc="step_train", leave=False):
             batch = batch.to(cfg.device)
@@ -138,6 +139,7 @@ def main(cfg):
 
     @torch.no_grad()
     def step_val():
+        model.eval()
         losses, accuracies = [], []
         for batch in tqdm(dataloader_val, desc="step_val", leave=False):
             batch = batch.to(cfg.device)

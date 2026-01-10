@@ -198,6 +198,7 @@ def main(cfg):
                 dataloader_val = call(cfg.dataloader, dataset_val)
 
                 # training
+                model.train()
                 desc = f"{idx_str} step_train, dataset_size={len(dataset_train)}"
                 for batch in tqdm(dataloader_train, desc=desc, leave=False):
                     batch = batch.to(cfg.device)
@@ -212,6 +213,7 @@ def main(cfg):
                     stats["dataset_size/train"] += len(batch)
 
                 # validation
+                model.eval()
                 desc = f"{idx_str} step_val, dataset_size={len(dataset_val)}"
                 with torch.no_grad():
                     for batch in tqdm(dataloader_val, desc=desc, leave=False):
