@@ -419,6 +419,7 @@ This software is released under the MIT License, see [LICENSE.txt](LICENSE.txt).
 - For the development, I strongly recommend using [pre-commit](https://github.com/pre-commit/pre-commit).
 Once installed, it is setup with `pre-commit install`.
 - For C++ implementation, the grid maps and scenarios files follow [the MAPF benchmark](https://movingai.com/benchmarks/mapf.html) format.
+- To store Hydra logs and outputs under a custom directory, pass `hydra.run.dir=/path/to/log_dir` when running scripts.
 
 ## Citation
 
