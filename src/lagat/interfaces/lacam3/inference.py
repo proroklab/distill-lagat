@@ -108,7 +108,7 @@ class Lacam3InferenceConfig(AlgoBase, extra=Extra.forbid):
     random_insert_prob1: float = 0.001
     random_insert_prob2: float = 0.01
     flg_random_insert_init_node: bool = False
-    recursive_rate: float = 0.2
+    recursive_rate: float = 0.0  # for CPU management
     recursive_time_limit: int = 1
 
 
