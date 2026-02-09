@@ -34,6 +34,10 @@ Please also refer to [the official guide](https://github.com/pytorch/pytorch?tab
 or [my gist](https://gist.github.com/Kei18/1aa7503bc3628b4e1cbccaaae3ee8327)
 </details>
 
+## Known issues
+
+- The Python LaGAT interface may fail unless `libtorch` is built from source and installed; prebuilt `libtorch` often does not work for `lagat` calls from Python.
+
 ## Setup
 
 ```sh
