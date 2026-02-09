@@ -5,7 +5,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white)](#)
 [![C++](https://img.shields.io/badge/C++-%2300599C.svg?logo=c%2B%2B&logoColor=white)](#)
 [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
-[![CI](https://github.com/Kei18/self-improving-mapf/actions/workflows/ci.yml/badge.svg)](https://github.com/Kei18/self-improving-mapf/actions/workflows/ci.yml)
+[![CI](https://github.com/proroklab/distill-lagat/actions/workflows/ci.yml/badge.svg)](https://github.com/proroklab/distill-lagat/actions/workflows/ci.yml)
 
 A template implementation for studying imitation learning–based approaches to multi-agent pathfinding (MAPF).
 This repository is a __simplified version of [LaGAT](https://arxiv.org/abs/2510.17382)__, a neuro-search method that combines:
