@@ -20,6 +20,7 @@ dependencies = [
     "torch>=2.8.0",
     "torch-geometric>=2.6.1",
     "tqdm>=4.67.1",
+    "tomli>=2.0.1",
     "typing_extensions>=4.12.2",
     "wandb>=0.21.1",
 ]
@@ -44,3 +45,14 @@ package = true
 
 [tool.uv.sources]
 pogema-toolbox = { git = "https://github.com/Kei18/pogema-toolbox.git" }
+torch = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.lagat.cpp]
+build_root = "build"
+interface_lacam3_dir = "interface-lacam3"
+interface_lagat_dir = "interface-lagat"

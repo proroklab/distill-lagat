@@ -81,12 +81,21 @@ def grid_config_generator_factory(
         num_agents = rng.choice(cands_num_agents)
         range_setting = rng.choice(map_types)
         setting = range_setting.sample(seed)
+
         if isinstance(range_setting, MazeRangeSettings):
             grid_map = MazeGenerator.generate_maze(**setting)
         elif isinstance(range_setting, MapRangeSettings):
             grid_map = generate_map(setting)
         elif isinstance(range_setting, PredefinedMapRangeSettings):
             grid_map = get_obstacles_from_mapfile(**setting)
+            free_positions = [
+                [y, x]
+                for y, row in enumerate(grid_map)
+                for x, cell in enumerate(row)
+                if cell == 0
+            ]
+            kwargs["possible_agents_xy"] = [pos[:] for pos in free_positions]
+            kwargs["possible_targets_xy"] = [pos[:] for pos in free_positions]
         else:
             raise ValueError()
 

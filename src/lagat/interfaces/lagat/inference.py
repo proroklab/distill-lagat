@@ -1,7 +1,7 @@
 import ctypes
 import numpy as np
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from lagat.interfaces.cpp_build_config import ensure_lib_exists, resolve_cpp_lib_path
 from pydantic import Extra
@@ -12,80 +12,77 @@ from pogema import GridConfig
 import platform
 
 if platform.system() == "Darwin":  # macOS
-    LACAM_LIB_FILENAME = "liblacam.dylib"
+    LAGAT_LIB_FILENAME = "libplanner.dylib"
 elif platform.system() == "Linux":
-    LACAM_LIB_FILENAME = "liblacam.so"
+    LAGAT_LIB_FILENAME = "libplanner.so"
 else:
     raise RuntimeError("Unsupported OS")
 
 
 calling_script_dir = Path(__file__).parent
-lib_lacam_path = resolve_cpp_lib_path(
-    calling_script_dir, "lacam3", "interfaces/lacam3", LACAM_LIB_FILENAME
+lib_lagat_path = resolve_cpp_lib_path(
+    calling_script_dir, "lagat", "interfaces/lagat", LAGAT_LIB_FILENAME
 )
-ensure_lib_exists(lib_lacam_path, "lacam3")
+ensure_lib_exists(lib_lagat_path, "lagat")
 
 
-class LacamLib:
+class LagatLib:
     def __init__(self):
         self.load_library()
 
     def load_library(self):
-        self._lacam_lib = ctypes.CDLL(lib_lacam_path)
+        self._lagat_lib = ctypes.CDLL(lib_lagat_path)
 
-        self._lacam_lib.run_lacam.argtypes = [
+        self._lagat_lib.run_lagat.argtypes = [
             ctypes.c_char_p,  # map_name
             ctypes.c_char_p,  # scene_name
             ctypes.c_int,  # N
             ctypes.c_float,  # time_limit_sec
             ctypes.c_int,  # seed
+            ctypes.c_char_p,  # model_path
+            ctypes.c_int,  # deadlock_detection
+            ctypes.c_int,  # deadlock_depth
+            ctypes.c_int,  # lns
+            ctypes.c_int,  # plns_num_refiners
             ctypes.c_int,  # verbose
-            ctypes.c_int,  # flg_no_star
-            ctypes.c_int,  # pibt_num
-            ctypes.c_int,  # refiner_num
-            ctypes.c_int,  # flg_no_scatter
-            ctypes.c_int,  # scatter_margin
-            ctypes.c_float,  # random_insert_prob1
-            ctypes.c_float,  # random_insert_prob2
-            ctypes.c_int,  # flg_random_insert_init_node
-            ctypes.c_float,  # recursive_rate
-            ctypes.c_int,  # recursive_time_limit
         ]
-        self._lacam_lib.run_lacam.restype = ctypes.c_char_p
+        self._lagat_lib.run_lagat.restype = ctypes.c_char_p
 
-    def run_lacam(self, map_file_content, scene_file_content, num_agents, cfg):
+    def run_lagat(
+        self,
+        map_file_content,
+        scene_file_content,
+        num_agents,
+        cfg,
+    ):
         map_file_bytes = map_file_content.encode("utf-8")
         scenario_file_bytes = scene_file_content.encode("utf-8")
+        model_path = str(cfg.model_path) if cfg.model_path else ""
 
         for time_limit_sec in cfg.timeouts:
-            result = self._lacam_lib.run_lacam(
+            result = self._lagat_lib.run_lagat(
                 map_file_bytes,
                 scenario_file_bytes,
                 ctypes.c_int(num_agents),
                 ctypes.c_float(time_limit_sec),
                 ctypes.c_int(cfg.seed),
+                model_path.encode("utf-8"),
+                ctypes.c_int(int(cfg.deadlock_detection)),
+                ctypes.c_int(cfg.deadlock_depth),
+                ctypes.c_int(int(cfg.lns)),
+                ctypes.c_int(cfg.plns_num_refiners),
                 ctypes.c_int(cfg.verbose),
-                ctypes.c_int(int(cfg.flg_no_star)),
-                ctypes.c_int(cfg.pibt_num),
-                ctypes.c_int(cfg.refiner_num),
-                ctypes.c_int(int(cfg.flg_no_scatter)),
-                ctypes.c_int(cfg.scatter_margin),
-                ctypes.c_float(cfg.random_insert_prob1),
-                ctypes.c_float(cfg.random_insert_prob2),
-                ctypes.c_int(int(cfg.flg_random_insert_init_node)),
-                ctypes.c_float(cfg.recursive_rate),
-                ctypes.c_int(cfg.recursive_time_limit),
             )
 
             try:
                 result_str = result.decode("utf-8")
             except Exception as e:
-                print(f"Exception occured while running LaCAM: {e}")
+                print(f"Exception occured while running LaGAT: {e}")
                 raise e
 
             if "ERROR" in result_str:
                 print(
-                    "LaCAM failed to find path with "
+                    "LaGAT failed to find path with "
                     f"time_limit_sec={time_limit_sec} | {result_str}"
                 )
                 continue
@@ -95,27 +92,22 @@ class LacamLib:
         return False, None
 
 
-class Lacam3InferenceConfig(AlgoBase, extra=Extra.forbid):
-    name: Literal["LaCAM"] = "LaCAM"
-    timeouts: list[float] = [1.0, 5.0, 10.0, 60.0]
+class LagatInferenceConfig(AlgoBase, extra=Extra.forbid):
+    name: Literal["LaGAT"] = "LaGAT"
+    timeouts: list[float] = [3.0]
     seed: int = 0
+    model_path: Optional[Path] = None
+    deadlock_detection: bool = True
+    deadlock_depth: int = 3
+    lns: bool = True
+    plns_num_refiners: int = 4
     verbose: int = 0
-    flg_no_star: bool = False
-    pibt_num: int = 10
-    refiner_num: int = 4
-    flg_no_scatter: bool = False
-    scatter_margin: int = 10
-    random_insert_prob1: float = 0.001
-    random_insert_prob2: float = 0.01
-    flg_random_insert_init_node: bool = False
-    recursive_rate: float = 0.0  # for CPU management
-    recursive_time_limit: int = 1
 
 
-class Lacam3Inference:
-    def __init__(self, cfg: Lacam3InferenceConfig):
+class LagatInference:
+    def __init__(self, cfg: LagatInferenceConfig):
         self.cfg = cfg
-        self.lacam_lib = LacamLib()
+        self.lagat_lib = LagatLib()
         self.output_data = None
         self.step = 1
         self.timed_out = False
@@ -181,22 +173,20 @@ class Lacam3Inference:
             for idx, (start_xy, target_xy) in enumerate(
                 zip(agent_starts_xy, agent_targets_xy)
             ):
-                task_file_content += (
-                    f"{idx}	tmp.map	{map_array.shape[0]}	{map_array.shape[1]}	"
-                )
+                task_file_content += f"{idx}	tmp.map	{map_array.shape[0]}	{map_array.shape[1]}	"
                 task_file_content += (
                     f"{start_xy[1]}	{start_xy[0]}	"
                     f"{target_xy[1]}	{target_xy[0]}	1\n"
                 )
 
-            solved, lacam_results = self.lacam_lib.run_lacam(
+            solved, lagat_results = self.lagat_lib.run_lagat(
                 map_file_content,
                 task_file_content,
                 num_agents,
                 self.cfg,
             )
             if solved:
-                self.output_data = self._parse_data(lacam_results)
+                self.output_data = self._parse_data(lagat_results)
             if self.output_data is None:
                 self.timed_out = True
                 return [0] * num_agents
