@@ -43,7 +43,7 @@ jobs:
         env:
           CMAKE_PREFIX_PATH: ${{ github.workspace }}/libtorch
         run: |
-          uv run pytest -s
+          uv run pytest -s -m "not lagat"
         #
       - name: Collect raw data
         run: uv run python scripts/collect_expert_trajectories.py

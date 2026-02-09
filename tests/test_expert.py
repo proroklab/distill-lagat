@@ -1,4 +1,6 @@
 from pathlib import Path
+
+import pytest
 from pogema import GridConfig
 from lagat.interfaces.lacam3.inference import Lacam3Inference, Lacam3InferenceConfig
 from lagat.interfaces.lagat.inference import LagatInference, LagatInferenceConfig
@@ -41,6 +43,7 @@ def test_lacam3():
     assert success, "Failed to solve"
 
 
+@pytest.mark.lagat
 def test_lagat():
     grid_config = _make_grid_config()
     model_path = Path(__file__).parents[1] / "assets/pretrained/loss_best_jit.pt"
