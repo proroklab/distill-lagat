@@ -50,27 +50,19 @@ After cloning this repo, run the following to complete the Python setup.
 uv sync
 ```
 
-<details><summary>For CUDA13</summary>
+<details><summary>For MacOS, Torch version incompatibility</summary>
 
-Easy fix:
-
-```sh
-uv pip install torch --torch-backend=auto
-uv run --no-sync python -c "import torch; print(torch.cuda.is_available())"
-```
-
-You need to use `--no-sync` flag every time.
-Or, you can add the following lines to `pyproject.toml`.
+You can comment out the following lines of `pyproject.toml`.
 
 ```toml
 [tool.uv.sources]
 pogema-toolbox = { git = "https://github.com/Kei18/pogema-toolbox.git" }
-torch = { index = "pytorch-cu130" }
+# torch = { index = "pytorch-cu130" }
 
-[[tool.uv.index]]
-name = "pytorch-cu130"
-url = "https://download.pytorch.org/whl/cu130"
-explicit = true
+# [[tool.uv.index]]
+# name = "pytorch-cu130"
+# url = "https://download.pytorch.org/whl/cu130"
+# explicit = true
 ```
 
 </details>
