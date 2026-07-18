@@ -96,7 +96,7 @@ def get_pyg_data_from_observations(
     Adj = squareform(pdist(global_xys, "euclidean"))
     mask = Adj <= obs_radius
     Adj = Adj * mask
-    Adj += np.ones_like(Adj)  # self-loop
+    Adj += np.eye(Adj.shape[0])  # self-loop
 
     # edge features
     edge_index, _ = dense_to_sparse(torch.tensor(Adj))

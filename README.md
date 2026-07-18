@@ -260,7 +260,7 @@ The data collection was for a night.
 Let's solely evaluate the model performance with:
 
 ```sh
-uv run scripts/eval_model.py model.fpath=assets/pretrained/success_best.jit save_animation=True
+uv run scripts/eval_model.py model.fpath=assets/pretrained/success_best.pt save_animation=True
 ```
 
 This will yield a csv file (some columns are omitted) like:
